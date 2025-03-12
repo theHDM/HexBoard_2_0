@@ -15,6 +15,8 @@ struct Hardwire_Switch {
   uint8_t state;
 };
 
+const size_t bytes_per_btn = 32; // just in case
+
 struct Physical_Button {
   // user-defined
   uint32_t color;   // rgb hex value

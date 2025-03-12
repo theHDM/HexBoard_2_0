@@ -91,23 +91,7 @@ enum {
   _synthTyp_arpeggio,
   _synthTyp_poly
 };
-enum {
-  _synthWav_hybrid,
-  _synthWav_square,
-  _synthWav_saw,
-  _synthWav_triangle,
-  _synthWav_sine,
-  _synthWav_strings,
-  _synthWav_clarinet
-};
-enum {
-  _synthEnv_none,
-  _synthEnv_hit,
-  _synthEnv_pluck,
-  _synthEnv_strum,
-  _synthEnv_slow,
-  _synthEnv_reverse
-};
+
 enum {
   _GM_instruments,
   _MT32_instruments
@@ -166,7 +150,7 @@ void load_factory_defaults_to(hexBoard_Setting_Array& refS, int version = 0) {
   refS[_axisB].i    = 1;      // axis B is up-right
   refS[_equaveD].i  = 0;      // dropdown
   refS[_equaveC].d  = 1200.0; // 1200 cents = octave
-  refS[_tuneSys].i  = _tuneSys_lg_sm;      // Equal divisions
+  refS[_tuneSys].i  = 0;      // Equal divisions
   refS[_eqDivs].i   = 12;     // 12 steps
   refS[_eqStepA].i  = -2;     // one whole tone
   refS[_eqStepB].i  = 7;      // perfect fifth
@@ -192,8 +176,8 @@ void load_factory_defaults_to(hexBoard_Setting_Array& refS, int version = 0) {
   refS[_JIdenB].i   = 4;      // 5/4 = JI major third
   refS[_scaleLck].b = false;  // default to no scale lock
   refS[_animFPS].i  = 32;     // default to 32 frames per 1.048576 seconds
-  refS[_palette].i  = _palette_rainbow;
-  refS[_animType].i = _animType_none;
+  refS[_palette].i  = 0;
+  refS[_animType].i = 0;
   refS[_globlBrt].i = (version >= 12 ? _globlBrt_dim : _globlBrt_mid);
   refS[_hueLoop].d  = 30.0;  // seconds for 360 degrees 
   refS[_tglWheel].b = false; // bool; 0 = mod, 1 = pb
@@ -208,19 +192,19 @@ void load_factory_defaults_to(hexBoard_Setting_Array& refS, int version = 0) {
   refS[_rotDblCk].i = 500; // milliseconds
   refS[_rotLongP].i = 750; // milliseconds
   refS[_SStime].i   = 10; // seconds
-  refS[_MIDImode].i = _MIDImode_standard;
+  refS[_MIDImode].i = 0;
   refS[_MIDIusb].b  = true;
   refS[_MIDIjack].b = (version >= 12);
   refS[_MPEzoneC].i = 2;
   refS[_MPEzoneL].i = 9;
   refS[_MPEzoneR].i = 11;
   refS[_MPEpb].i    = 48; // 2, 12, 24, 48, or 96
-  refS[_MIDIorMT].i = _GM_instruments;
+  refS[_MIDIorMT].i = 0;
   refS[_MIDIpc].i   = 1; // program chg 1 - 128
   refS[_MT32pc].i   = 1;
-  refS[_synthTyp].i = _synthTyp_poly;
-  refS[_synthWav].i = _synthWav_clarinet;
-  refS[_synthEnv].i = _synthEnv_slow;
+  refS[_synthTyp].i = 0;
+  refS[_synthWav].i = 0;
+  refS[_synthEnv].i = 0;
   refS[_synthVol].i = 96;
   refS[_synthBuz].b = false;
   refS[_synthJac].b = true || (version >= 12);

@@ -78,9 +78,6 @@ GEMPagePublic pgLayout(
 GEMPagePublic pgL_Micro(
   "microtones layout",                 _hide_GUI, 0, 0, 7, pgLayout);
 
-
-
-
 GEMPagePublic pgSideBarKey("...set anchor and key",
   "Press the hex button where\nyou want the key center to\nbe located. The coordinates\nof the button will update\nabove when you do so.", 
   _show_custom_msg, 0, 0, 11);
@@ -279,7 +276,8 @@ enum {
 
 #define __SIDEBAR(P) P.setParentMenuPage(*(menu.getCurrentMenuPage()));menu.setMenuPageCurrent(P)
 
-extern void menu_handler(int settingNumber);
+extern void on_setting_change(int settingNumber);
+
 void onChg(GEMCallbackData callbackData) {
 	int s = callbackData.valInt;
   // this is a little more flexible than switch...case.
@@ -304,7 +302,7 @@ void onChg(GEMCallbackData callbackData) {
 	}
   // after all menu related actions occur, go into the main .ino
   // and run any application code necessary from there.
-  menu_handler(s);
+  on_setting_change(s);
   menu.drawMenu();
 }
 

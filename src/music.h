@@ -24,6 +24,26 @@ const float f_hyb_square   =  220.f;
 const float f_hyb_saw_low  =  440.f;
 const float f_hyb_saw_high =  880.f;
 const float f_hyb_triangle = 1760.f;
+
+enum {
+  _synthWav_hybrid,
+  _synthWav_square,
+  _synthWav_saw,
+  _synthWav_triangle,
+
+  _synthWav_sine,
+  _synthWav_strings,
+  _synthWav_clarinet
+};
+enum {
+  _synthEnv_none,
+  _synthEnv_hit,
+  _synthEnv_pluck,
+  _synthEnv_strum,
+  _synthEnv_slow,
+  _synthEnv_reverse
+};
+
 enum class Linear_Wave {square, saw, triangle, hybrid};
 
 wave_tbl linear_waveform(double _f, Linear_Wave _shp, uint8_t _mod) {
@@ -133,11 +153,37 @@ const float clarinetPhase[11] = {
   0.f, 0.f, 0.f,    0.f, 0.f,  0.f, 0.f,    0.f, 0.f,    0.f, 0.f
 };
 
-wave_tbl cached_waveform;
-void set_cached_wavetable(const wave_tbl& inputWaveTbl) {
-  for (uint8_t i = 0; i < 256; ++i) {
-    cached_waveform[i] = inputWaveTbl[i];
-  }
+// if in the future you use a custom wave table of samples,
+// this function could be useful.
+//void set_cached_wavetable(const wave_tbl& inputWaveTbl) {
+//  for (uint8_t i = 0; i < 256; ++i) {
+//    cached_waveform[i] = inputWaveTbl[i];
+//  }
+//}
+
+void pre_cache_synth_waveform(const int& selection, wave_tbl& cache) {
+  switch (selection) {
+    case _synthWav_square:
+      cache = linear_waveform(1.f, Linear_Wave::square, 0);
+      break;
+    case _synthWav_saw:
+      cache = linear_waveform(1.f, Linear_Wave::saw, 0);
+      break;
+    case _synthWav_triangle:
+      cache = linear_waveform(1.f, Linear_Wave::triangle, 0);
+      break;
+    case _synthWav_sine:
+      cache = additive_synthesis(1, sineAmt, sinePhase);
+      break;
+    case _synthWav_strings:
+      cache = additive_synthesis(10, stringsAmt, stringsPhase);
+      break;
+    case _synthWav_clarinet:
+      cache = additive_synthesis(11, clarinetAmt, clarinetPhase);
+      break;
+    default:
+      break;
+  } 
 }
 
 uint32_t frequency_to_interval(
