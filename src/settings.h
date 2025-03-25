@@ -16,7 +16,7 @@
 
 enum {
   // meta fields
-  _defaults,_changed, _debug,  
+  _version, _defaults, _changed, _debug,  
   // master tuning / key center data
   _anchorX, _anchorY, _anchorN, _anchorC, _anchorF,
   _txposeS, _txposeC,

@@ -1,5 +1,7 @@
 #pragma once
 #include <stdint.h>
+#include <functional>
+#include <vector>
 #include <Wire.h>
 #include <U8g2lib.h>
 #include "pico/time.h"
@@ -59,3 +61,24 @@ struct OLED_screensaver {
     }
   }
 };
+
+struct GUI_Object {
+  uint32_t context;
+  std::vector<std::function<void()>> drawLayer;
+  GUI_Object(size_t n) : drawLayer(n), context(0) {}
+  void enable(size_t l) {
+    context |= (1u << l);
+  }
+  void disable(size_t l) {
+    context &= ~(1u << l);
+  }
+  void draw() {
+    for (size_t i = 0; i < drawLayer.size(); ++i) {
+      if (context & (1u << i)) {
+        drawLayer[i]();
+      }
+    }
+  }
+};
+
+GUI_Object GUI(32);

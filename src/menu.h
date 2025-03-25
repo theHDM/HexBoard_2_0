@@ -1,6 +1,5 @@
 #pragma once
 #include "OLED.h" // OLED graphics object
-#include "GUI.h"
 #include "library.h"
 #include <GEM_u8g2.h>   // library of code to create menu objects on the B&W display
 #include "config/enable-advanced-mode.h"
@@ -32,9 +31,9 @@ struct GEMItemPublic : public GEMItem {
  *  shown to e.g. 7 rows.
  */
 struct GEMPagePublic : public GEMPage {
-  int menu_context;
-  int GUI_context;
-	std::string HUD_footer;
+  int menu_context; // this value drives input decisions sometimes
+  uint32_t GUI_context; // this value drives what gets drawn on screen besides the menu
+	std::string HUD_footer; // this value gets read by the GUI reader function.
   GEMAppearance derived_appearance;
   void initialize_appearance(byte titleRows_, byte itemsPerScreen_, 
 	                           byte valueMargin_) {
@@ -65,26 +64,21 @@ struct GEMPagePublic : public GEMPage {
 };
 
 GEMPagePublic pgNoMenu(
-  "",              "Long press knob: main menu", 
-	                   _show_HUD + _show_dashboard, 0, 0, 0);
+  "",              "Long press knob: main menu", 0b0000001, 0, 0, 0);
 GEMPagePublic pgHome(
-  "Hexboard v1.1", "Long press knob: exit menu",  
-	                                     _show_HUD, 0, 7, 0);
+  "Hexboard v1.1", "Long press knob: exit menu", 0b0000001, 0, 7, 0);
 GEMPagePublic pgShowMsg(
-  "",                           _show_custom_msg, 6, 1, 0, pgHome);
+  "",                                            0b0000001, 6, 1, 0, pgHome);
 GEMPagePublic pgLayout(
-  "Layout & tuning",                   _show_HUD, 0, 7, 0, pgHome);
-
+  "Layout & tuning",                             0b0000001, 0, 7, 0, pgHome);
 GEMPagePublic pgL_Micro(
-  "microtones layout",                 _hide_GUI, 0, 0, 7, pgLayout);
-
+  "microtones layout",                           0b0000001, 0, 0, 7, pgLayout);
 GEMPagePublic pgSideBarKey("...set anchor and key",
   "Press the hex button where\nyou want the key center to\nbe located. The coordinates\nof the button will update\nabove when you do so.", 
-  _show_custom_msg, 0, 0, 11);
-
+  0b0000001, 0, 0, 11);
 GEMPagePublic pgSideBarCents("...enter floating value",
   "Single click to edit\nSelect confirm to accept\nLong press to cancel", 
-  _show_custom_msg, 0, 0, 7);
+  0b0000001, 0, 0, 7);
 
 
 GEMSelect dd_periods(4, (SelectOptionInt[]){
@@ -341,14 +335,6 @@ void build_menu() {
 
 }
 
-void query_GUI() {
-	GEMPagePublic* thisPg = static_cast<GEMPagePublic*>
-													(menu.getCurrentMenuPage());
-  GUI.context = thisPg->GUI_context;
-  GUI.HUD_footer = thisPg->HUD_footer;
-	GUI.draw();
-}
-
 int menu_app_state() {
   if (!menu.readyForKey()) return 0;
   if (!menu.isEditMode()) return 1;
@@ -356,18 +342,18 @@ int menu_app_state() {
   return 2 + (pubItem.getLinkedType() == GEM_VAL_DOUBLE);
 }
 
+void after_menu_update_GUI() {
+	GEMPagePublic* thisPg = static_cast<GEMPagePublic*>
+													(menu.getCurrentMenuPage());
+  GUI.context = thisPg->GUI_context;
+	GUI.draw();
+}
 
 void menu_setup() {
   menu.setSplashDelay(0);
   build_menu();
   menu.init();
   menu.invertKeysDuringEdit(true);
-	menu.setDrawMenuCallback(query_GUI);
   menu.setMenuPageCurrent(pgNoMenu);
   menu.drawMenu();
 }
-// give your preset a name then press ok or cancel
-// Save your current preset first? if yes, go to save preset then after execute then load.
-// Quick reboot
-// Flash firmware
-// Factory reset -> are you sure?

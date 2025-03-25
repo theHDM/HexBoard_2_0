@@ -164,10 +164,14 @@ namespace hexBoardHW {
         for (size_t i = 0; i < GPIO_pin_count; ++i) {
           pin_status[i] = false;
         }
-        for (size_t i = 0; i < count; ++i) {
-          internal_set_pin(pins[i], true);
+        if (count) {
+          for (size_t i = 0; i < count; ++i) {
+            internal_set_pin(pins[i], true);
+          }
         }
       }
+      Instance() : Instance(nullptr, 0) {}
+ 
       void start() {active = true;}
       void stop() {active = false;}
 
@@ -522,7 +526,13 @@ namespace hexBoardHW {
         calibrate(invert_yn, longPress_mS, doubleClick_mS);
         ownership = -1;
       }
-
+      bool getClickState() {
+        while (ownership == 1) {}
+        ownership = 0;
+        bool result = (_clickState & 1);
+        ownership = -1;
+        return result;
+      }
       void writeAction(Action rotary_action_in) {
         queue_add_blocking(&act_queue, &rotary_action_in);
       }
