@@ -282,13 +282,14 @@ void knob_handler_menu(const Rotary::Action& r) {
     case Rotary::Action::turn_CW_with_press: {
       doNotDrawMenu = true;
       menu.registerKeyPress(GEM_KEY_DOWN);
-      
+      doNotDrawMenu = false;
       break;
     }
     case Rotary::Action::turn_CCW:
     case Rotary::Action::turn_CCW_with_press: {
       doNotDrawMenu = true;
       menu.registerKeyPress(GEM_KEY_UP);
+      doNotDrawMenu = false;
       break;
     }
     case Rotary::Action::single_click_release: {
@@ -298,12 +299,14 @@ void knob_handler_menu(const Rotary::Action& r) {
       } else {
         menu.registerKeyPress(GEM_KEY_OK);       
       }
+      doNotDrawMenu = false;
       break;
     }
     case Rotary::Action::double_click: {
       if (menu_app_state() >= 2) {
         doNotDrawMenu = true;
         menu.registerKeyPress(GEM_KEY_LEFT);       
+        doNotDrawMenu = false;
       } else {
         //
       }
@@ -316,6 +319,7 @@ void knob_handler_menu(const Rotary::Action& r) {
       } else {
         menu.registerKeyPress(GEM_KEY_OK);       
       }
+      doNotDrawMenu = false;
       break;
     }
     case Rotary::Action::long_press: {
@@ -327,11 +331,11 @@ void knob_handler_menu(const Rotary::Action& r) {
       } else {
         menu.registerKeyPress(GEM_KEY_CANCEL);
       }
+      doNotDrawMenu = false;
       break;
     }
     default:                          break;
   }
-  doNotDrawMenu = false;
 }
 
 void knob_handler_playback(const Rotary::Action& r) {
