@@ -1,160 +1,68 @@
 /*  
- *  HexBoard v2.0
+ *  Hex
+ Board v2.0
  */
 
-#include <stdint.h>
-#include "pico/time.h"
 #include "src/config.h"
-
-enum class App_state { 
-  setup,               
-  play_mode, menu_nav,
-  hex_picker, color_picker,
-  sequencer, calibrate,           
-  data_mgmt, crash, low_power,
-};
-App_state current_state = App_state::setup;
-
-
-#include "src/debug.h"
 #include "src/settings.h"
+#include "src/debug.h"
 #include "src/file_system.h"
 
-const char* settingFileName = "temp222.dat";
+#include "src/hexBoardHW.h"
+using namespace hexBoardHW;
+
+#include "src/hexBoardGrid.h"
+Button_Grid hexBoard(hexBoard_layout_hw_1_2);
+
+#include "src/layout.h"
+App_Data music[buttons_count];
+
+#include "src/LED.h"
+Pixel_Data pixel[buttons_count];
 
 
-#include "src/hardware_drivers.h"
-namespace hexBoardHW::Synth {
-  Instance instance;
-  bool on_callback(struct repeating_timer *t)  { 
-    instance.poll();  
-    return true; 
-  }
-}
-namespace hexBoardHW::Rotary {
-  Instance instance(rotaryPinA, rotaryPinB, rotaryPinC);
-  bool on_callback(struct repeating_timer *t) { 
-    instance.poll(); 
-    return true; 
-  }
-}
-namespace hexBoardHW::Keys {
-  Instance instance(muxPins, colPins, analogPins);
-  bool on_callback(struct repeating_timer *t)   { 
-    instance.poll();   
-    return true; 
-  }
-}
+#include "src/OLED.h"
+OLED_screensaver       oled_screensaver(default_contrast, screensaver_contrast);
 
-#include "src/color.h"
-#include "src/music.h"  // microtonal and MIDI math
-wave_tbl               cached_waveform;
+#include "src/direct_digital_synthesis.h"  // microtonal and MIDI math
+wave_tbl cached_waveform;
 
 #include "src/MIDI_api.h"
-#include "src/LED.h"
-#include "src/OLED.h"
-#include "src/button.h"
-
-OLED_screensaver       oled_screensaver(default_contrast, screensaver_contrast);
-Button_Grid            hexBoard(hexBoard_layout_hw_1_2);
 
 #include "src/menu.h"
-#include "src/GUI.h"
-//#include "src/layout.h"
 
-void start_background_processes() {
-  alarm_pool_t *core1pool;
-  core1pool = alarm_pool_create(1, 4);
-  hexBoardHW::Synth::instance.begin();
-  hexBoardHW::Synth::background_poll(core1pool, -audio_sample_interval_uS);
-  hexBoardHW::Rotary::instance.begin();
-  hexBoardHW::Rotary::background_poll(core1pool, rotary_poll_interval_uS);
-  hexBoardHW::Keys::instance.begin();
-  hexBoardHW::Keys::background_poll(core1pool, key_poll_interval_uS);
-  while (1) {
-    // once these objects are run, then core_1 will
-    // run background processes only
-  }
-}
 
-void link_settings_to_objects(hexBoard_Setting_Array& refS) {
-  debug.setStatus(&refS[_debug].b);
-  oled_screensaver.setDelay(&refS[_SStime].i);
-}
+/*
+ * Menu action handler
+ * 
+ * After selecting an option from the OLED menu
+ * this is where you define callback functions
+ * 
+ * A positive integer means that a setting was changed
+ * (the enum value of the corresponding hexboard setting
+ * is passed).
+ * 
+ * A negative integer means that a command was issued
+ * from the menu -- e.g. update layout, load settings, etc.
+ *
+ */
 
-void on_setting_change(int settingNumber) {
-  switch (settingNumber) {
-    case _on_generate_layout:
-      //generate_layout(settings);
-      menu.setMenuPageCurrent(pgHome);
-      break;
-    
-    case _txposeS: case _txposeC:
-      // recalculate pitches for everyone
-      break;
-    case _scaleLck:
-      // set scale lock as appropriate
-      break;
-    case _rotInv: case _rotDblCk: case _rotLongP:
-      hexBoardHW::Rotary::instance.recalibrate(
-        settings[_rotInv].b, 
-        settings[_rotLongP].i, 
-        settings[_rotDblCk].i
-      );
-      break;
-    case _MIDIusb: case _MIDIjack:
-      // turn MIDI jacks on/off
-      break;    
-    case _synthBuz: case _synthJac:
-      hexBoardHW::Synth::instance.set_pin(piezoPin, settings[_synthBuz].b);
-      hexBoardHW::Synth::instance.set_pin(audioJackPin, settings[_synthJac].b);
-      break;    
-    case _MIDIpc: case _MT32pc:
-      // send program change
-      break;
-    case _synthWav:
-      pre_cache_synth_waveform(settings[_synthWav].i, cached_waveform); 
-      break;
-    /*
-    _animFPS,  //
-    _palette,  //
-    _animType, //
-    _globlBrt, //
-    _hueLoop,  //
-    _tglWheel, //
-    _whlMode,  //
-    _mdSticky, //
-    _pbSticky, //
-    _vlSticky, //
-    _mdSpeed,  //
-    _pbSpeed,  //
-    _vlSpeed,  //
-    _MIDImode, //
-    _MPEzoneC, //
-    _MPEzoneL, //
-    _MPEzoneR, //
-    _MPEpb,    //
-    _synthTyp, //
-    */
-    default: 
-      break;
-  }
-}
-
-void apply_settings_to_objects(hexBoard_Setting_Array& refS) {
+void apply_settings_to_objects() {
   on_setting_change(_synthBuz);
   on_setting_change(_rotInv);
   on_setting_change(_synthWav);
   //generate_layout(refS);
 }
 
-void note_on(Physical_Button& n) {
-  using namespace hexBoardHW::Synth;
+void note_on(Physical_Button& b) {
+  App_Data *n = static_cast<App_Data*>(b.app_data_ptr);
+  if (n == nullptr) return;  
   // synth note-on
-  if (!queue_is_empty(&open_channel_queue)) {
-    queue_remove_blocking(&open_channel_queue, &(n.synthChPlaying) );
-    Voice *v = &instance.voice[(n.synthChPlaying) - 1];
-    double adj_f = frequency_after_pitch_bend(n.frequency, 0 /*pb*/, 2 /*pb range*/);
+  using namespace Synth;
+  if (!queue_is_empty(&open_channel_queue)) {  
+    queue_remove_blocking(&open_channel_queue, &(n->synthChPlaying) );
+    Voice *v = &voice[(n->synthChPlaying) - 1];
+    double adj_f = frequency_after_pitch_bend(n->freq, 0 /*global pb*/, 2 /*pb range*/);
     v->update_pitch(frequency_to_interval(adj_f, audio_sample_interval_uS));
     if    ((settings[_synthWav].i == _synthWav_hybrid) || ( false /*mod wheel > 0*/
       &&  ((settings[_synthWav].i == _synthWav_square) 
@@ -165,7 +73,7 @@ void note_on(Physical_Button& n) {
     } else {
       v->update_wavetable(cached_waveform);
     }
-    v->update_base_volume((settings[_synthVol].i * n.velocity * iso226(adj_f)) >> 15);
+    v->update_base_volume((settings[_synthVol].i * b.velocity * iso226(adj_f)) >> 15);
     switch (settings[_synthEnv].i) { // attack ms, decay ms, sustain 0-255, release ms
       case _synthEnv_hit:     v->update_envelope(  20,   50, 128,  100); break;
       case _synthEnv_pluck:   v->update_envelope(  20, 1000,  24,  100); break;
@@ -176,24 +84,29 @@ void note_on(Physical_Button& n) {
     }
     v->note_on();
   }
-  // MIDI_api.noteOn(69,96,1);
 
+  // MIDI note-on
+  MIDI_api.noteOn(n->channel,n->table,n->note,b.velocity);
 }
 
-void note_off(Physical_Button& n) {
+void note_off(Physical_Button& b) {
+  App_Data *n = static_cast<App_Data*>(b.app_data_ptr);
+  if (n == nullptr) return;  
   // synth note-off
-  if (n.synthChPlaying) {
-    using namespace hexBoardHW::Synth;
-    instance.voice[(n.synthChPlaying) - 1].note_off();
+  if (n->synthChPlaying) {
+    using namespace Synth;
+    voice[(n->synthChPlaying) - 1].note_off();
     if (!queue_is_full(&open_channel_queue)) {
       queue_add_blocking(
         &open_channel_queue, 
-        &(n.synthChPlaying)
+        &(n->synthChPlaying)
       );
     }
-    n.synthChPlaying = 0;
+    n->synthChPlaying = 0;
   }
+  
   // MIDI note-off
+  MIDI_api.noteOff(n->midiChPlaying,n->table,n->note,0);
 }
 
 void color_this_hex(const Hex& h, const HSV& c) {
@@ -207,14 +120,22 @@ void color_this_hex(const Hex& h, const HSV& c) {
  * GUI layers
  */
 
-void draw_hex_grid_on_OLED() {
+const uint32_t GUI_arrowPersist_uS = 500000;
+volatile uint32_t GUI_timestampCW = -GUI_arrowPersist_uS;
+volatile uint32_t GUI_timestampCCW = -GUI_arrowPersist_uS;
+volatile uint8_t GUI_iconKnobClick = 0;
+
+void draw_input_monitor(std::string s) {
+  // draw GUI element that shows reactive 
+  // pixel grid representing buttons currently
+  // pressed. the string passed thru is ignored
+  int atX;
+  int atY;
   for (auto& b : hexBoard.btn) {
-    int atX = 107 + 2 * b.coord.x 
-                              - (b.coord.x <= -10 ? 1 : 0);
-    int atY =  99 + 3 * b.coord.y;
-    u8g2.drawPixel(atX,atY);
-    if (b.pressure) {
-                            u8g2.drawPixel(atX  ,atY-1);   // off low mid hi
+    atX = 108 + 2 * b.coord.x - (b.coord.x <= -10 ? 1 : 0);
+    atY = 106 + 3 * b.coord.y;
+                            u8g2.drawPixel(atX,atY);
+    if (b.pressure) {       u8g2.drawPixel(atX  ,atY-1);   // off low mid hi
                             u8g2.drawPixel(atX  ,atY+1);   //      *   *  ***
     if (b.pressure >  64) { u8g2.drawPixel(atX-1,atY  );   //  *   *  *** ***
                             u8g2.drawPixel(atX+1,atY  ); } //      *   *  ***
@@ -223,43 +144,89 @@ void draw_hex_grid_on_OLED() {
                             u8g2.drawPixel(atX+1,atY-1);   //
                             u8g2.drawPixel(atX+1,atY+1); } //          
     }
-  }  
-}
-
-void draw_brightness_amt_on_OLED() {
-  u8g2.setFont(u8g2_font_osr41_tn);
-  u8g2.drawStr(_LEFT_MARGIN, 10, std::to_string(settings[_globlBrt].i).c_str());
-  u8g2.setFont(u8g2_font_6x12_tr);
-}
-
-void draw_HUD_footer_on_OLED() {
-  u8g2.setFont(u8g2_font_4x6_tr);
-  GEMPagePublic* thisPg = static_cast<GEMPagePublic*>
-                        (menu.getCurrentMenuPage());
-  u8g2.drawStr(_LEFT_MARGIN, 122, thisPg->HUD_footer.c_str());
-  u8g2.setFont(u8g2_font_6x12_tr);
-}
-
-void draw_hex_picker_on_OLED() {
-  Hex selHex;
-  selHex.x = settings[_anchorX].i;
-  selHex.y = settings[_anchorY].i;
-  if (hexBoard.in_bounds(selHex)) {
-    u8g2.drawStr(_LEFT_MARGIN, 8, "Anchor hex: ");
-    u8g2.drawStr(_LEFT_MARGIN + 84, 8, 
-      std::to_string(hexBoard.btn_by_coord.at(selHex)->pixel).c_str());
-  } else {
-    u8g2.drawStr(_LEFT_MARGIN, 8, "Press anchor hex >>");
   }
+  atX = 82;
+  atY = 97;
+  if (GUI_iconKnobClick == 1) {
+    u8g2.drawBox(atX-1,atY-1,3,3);
+  } else if (GUI_iconKnobClick == 2) {
+    u8g2.drawPixel(atX-2,atY-1);
+    u8g2.drawPixel(atX-2,atY+1);
+    u8g2.drawPixel(atX,atY-2);
+    u8g2.drawPixel(atX,atY);
+    u8g2.drawPixel(atX,atY+2);
+    u8g2.drawPixel(atX+2,atY-1);
+    u8g2.drawPixel(atX+2,atY+1);
+  } else if (GUI_iconKnobClick == 3) {
+    u8g2.drawHLine(atX-1,atY-2,3);
+    u8g2.drawVLine(atX-2,atY-1,3);
+    u8g2.drawVLine(atX+2,atY-1,3);
+    u8g2.drawHLine(atX-1,atY+2,3);      
+  }
+  if (timer_hw->timerawl - GUI_timestampCW < GUI_arrowPersist_uS) {
+    u8g2.drawLine(atX+1,atY-4,atX+2,atY-5);
+    u8g2.drawLine(atX+3,atY-5,atX+5,atY-3);
+    u8g2.drawHLine(atX+4,atY-2,3);
+    u8g2.drawVLine(atX+6,atY-4,2);
+  } else if (timer_hw->timerawl - GUI_timestampCCW < GUI_arrowPersist_uS) {
+    u8g2.drawLine(atX+1,atY+4,atX+2,atY+5);
+    u8g2.drawLine(atX+3,atY+5,atX+5,atY+3);
+    u8g2.drawHLine(atX+4,atY+2,3);
+    u8g2.drawVLine(atX+6,atY+3,2);
+  }
+
+
+
 }
 
+void draw_GUI_sliders(std::string s) {
+}
+
+void draw_GUI_dashboard(std::string s) {
+  // GUI element in "play" mode
+  // show live rotary control information
+  // knob press toggles what the rotary controls
+  // e.g. transpose, program change, animations, etc.
+}
+
+void draw_GUI_popup(std::string s) {
+  u8g2.setFont(u8g2_font_6x12_tr);
+  drawStringWrap(_LEFT_MARGIN, 12, s, false);
+}
+
+void draw_GUI_verbose_log(std::string s) {
+  // draw verbose text currently stored in
+  // GUI instance
+  u8g2.setFont(u8g2_font_4x6_tr);
+  drawStringWrap(_LEFT_MARGIN, 112, s, true);
+  u8g2.setFont(u8g2_font_6x12_tr);
+}
+
+void draw_GUI_footer(std::string s) {
+  // display the "HUD footer" text assigned to the menu page you're on
+  u8g2.setFont(u8g2_font_4x6_tr);
+  drawStringWrap(_LEFT_MARGIN, 122, s, true);
+  u8g2.setFont(u8g2_font_6x12_tr);
+}
+
+enum {
+  _GUI_input_monitor  = 1u << 0,
+  _GUI_sliders        = 1u << 1,
+  _GUI_dashboard      = 1u << 2,
+  _GUI_popup          = 1u << 3,
+  _GUI_verbose_log    = 1u << 4,
+  _GUI_footer         = 1u << 5,
+};
 void initialize_GUI_layers() {
-  GUI.drawLayer[0] = draw_hex_grid_on_OLED;
-  GUI.drawLayer[1] = draw_brightness_amt_on_OLED;
-  GUI.drawLayer[2] = draw_HUD_footer_on_OLED;
-  GUI.drawLayer[2] = draw_hex_picker_on_OLED;
-}
+  GUI.set_handler(_GUI_input_monitor, draw_input_monitor);
+  GUI.set_handler(_GUI_sliders, draw_GUI_sliders);
+  GUI.set_handler(_GUI_dashboard, draw_GUI_dashboard);
+  GUI.set_handler(_GUI_popup, draw_GUI_popup);
+  GUI.set_handler(_GUI_verbose_log, draw_GUI_verbose_log);
+  GUI.set_handler(_GUI_footer, draw_GUI_footer);
 
+  GUI.add_context(_GUI_input_monitor);
+}
 
 /*  
  *  Handlers for UI input: key and knob
@@ -307,51 +274,25 @@ void key_handler_color_picker(Physical_Button& b) {
   }
 }
 
-void knob_handler_playback(const hexBoardHW::Rotary::Action& r) {
-  switch (r) {
-    case hexBoardHW::Rotary::Action::turn_CW:
-    case hexBoardHW::Rotary::Action::turn_CW_with_press: {
-      ++settings[_globlBrt].i;
-      break;
-    }
-    case hexBoardHW::Rotary::Action::turn_CCW:
-    case hexBoardHW::Rotary::Action::turn_CCW_with_press: {
-      --settings[_globlBrt].i;
-      break;
-    }
-    case hexBoardHW::Rotary::Action::long_press: {
-      menu.setMenuPageCurrent(pgHome);
-      current_state = App_state::menu_nav;
-      break;
-    }
-    default:                          break;
-  }
-}
-
-void knob_handler_color_picker(const hexBoardHW::Rotary::Action& r) {
-  knob_handler_playback(r);
-}
-void knob_handler_hex_picker(const hexBoardHW::Rotary::Action& r) {
-  knob_handler_playback(r);
-}
-
-
 volatile bool doNotDrawMenu = false;
-void knob_handler_menu(const hexBoardHW::Rotary::Action& r) {
+void knob_handler_menu(const Rotary::Action& r) {
   // while dealing with rotary, halt OLED auto-update
-  doNotDrawMenu = true;
   switch (r) {
-    case hexBoardHW::Rotary::Action::turn_CW:
-    case hexBoardHW::Rotary::Action::turn_CW_with_press: {
+    case Rotary::Action::turn_CW:
+    case Rotary::Action::turn_CW_with_press: {
+      doNotDrawMenu = true;
       menu.registerKeyPress(GEM_KEY_DOWN);
+      
       break;
     }
-    case hexBoardHW::Rotary::Action::turn_CCW:
-    case hexBoardHW::Rotary::Action::turn_CCW_with_press: {
+    case Rotary::Action::turn_CCW:
+    case Rotary::Action::turn_CCW_with_press: {
+      doNotDrawMenu = true;
       menu.registerKeyPress(GEM_KEY_UP);
       break;
     }
-    case hexBoardHW::Rotary::Action::click: {
+    case Rotary::Action::single_click_release: {
+      doNotDrawMenu = true;
       if (menu_app_state() >= 2) {
         menu.registerKeyPress(GEM_KEY_RIGHT);       
       } else {
@@ -359,15 +300,17 @@ void knob_handler_menu(const hexBoardHW::Rotary::Action& r) {
       }
       break;
     }
-    case hexBoardHW::Rotary::Action::double_click: {
+    case Rotary::Action::double_click: {
       if (menu_app_state() >= 2) {
+        doNotDrawMenu = true;
         menu.registerKeyPress(GEM_KEY_LEFT);       
       } else {
         //
       }
       break;
     }
-    case hexBoardHW::Rotary::Action::double_click_release: {
+    case Rotary::Action::double_click_release: {
+      doNotDrawMenu = true;
       if (menu_app_state() >= 2) {
         menu.registerKeyPress(GEM_KEY_LEFT);       
       } else {
@@ -375,19 +318,81 @@ void knob_handler_menu(const hexBoardHW::Rotary::Action& r) {
       }
       break;
     }
-    case hexBoardHW::Rotary::Action::long_press: {
+    case Rotary::Action::long_press: {
+      doNotDrawMenu = true;
       if (menu_app_state() >= 2) {
         menu.registerKeyPress(GEM_KEY_OK);
       } else if (menu.getCurrentMenuPage() == &pgHome) {
         menu.setMenuPageCurrent(pgNoMenu);
-        current_state = App_state::play_mode;
       } else {
         menu.registerKeyPress(GEM_KEY_CANCEL);
       }
       break;
     }
     default:                          break;
-    doNotDrawMenu = false;
+  }
+  doNotDrawMenu = false;
+}
+
+void knob_handler_playback(const Rotary::Action& r) {
+  switch (r) {
+    case Rotary::Action::turn_CW:
+    case Rotary::Action::turn_CW_with_press: {
+      // based on current live setting,
+      // change said setting by +1 on the fly
+      ++settings[_globlBrt].i;
+      break;
+    }
+    case Rotary::Action::turn_CCW:
+    case Rotary::Action::turn_CCW_with_press: {
+      // based on current live setting,
+      // change said setting by -1 on the fly
+      --settings[_globlBrt].i;
+      break;
+    }
+    case Rotary::Action::single_click_release:
+    case Rotary::Action::double_click_release: {
+      // change live setting on the fly
+
+      break;
+    }
+    case Rotary::Action::long_press: {
+      // long press changes to menu mode
+      menu.setMenuPageCurrent(pgHome);
+      break;
+    }
+    default:                          break;
+  }
+}
+
+void knob_handler_GUI(const Rotary::Action& r) {
+  switch (r) {
+    case Rotary::Action::turn_CW:
+    case Rotary::Action::turn_CW_with_press: {
+      GUI_timestampCW = timer_hw->timerawl;
+      break;
+    }
+    case Rotary::Action::turn_CCW:
+    case Rotary::Action::turn_CCW_with_press: {
+      GUI_timestampCCW = timer_hw->timerawl;
+      break;
+    }
+    case Rotary::Action::single_click_press: {
+      GUI_iconKnobClick = 1;
+      break;
+    }
+    case Rotary::Action::double_click: {
+      GUI_iconKnobClick = 2;
+      break;
+    }
+    case Rotary::Action::long_press: {
+      GUI_iconKnobClick = 3;
+      break;
+    }
+    default: {
+      GUI_iconKnobClick = 0;
+      break;
+    }
   }
 }
 
@@ -399,20 +404,112 @@ void hardwired_switch_handler(const Hardwire_Switch& h) {
   }
 }
 
-/*  
- *  Handlers for UI output: LED and OLED
+/*
+ * startup subroutines
  */
+void hardware_test_mode() {
+  // hold to do some cool stuff
+}
+
+/*
+  while (current_state == App_state::safe_mode) {
+    // blocking queue_remove because must make a selection
+    queue_remove_blocking(&Rotary::act_queue, &Rotary::action_out);
+    switch (Rotary::action_out) {
+      case Rotary::Action::turn_CW: 
+      case Rotary::Action::turn_CW_with_press:
+      case Rotary::Action::turn_CCW: 
+      case Rotary::Action::turn_CCW_with_press: {
+        popup_toggle = !popup_toggle;
+        break;
+      }
+      case Rotary::Action::click: {
+        if (popup_toggle) {
+          current_state = App_state::hardware_test;
+          hardware_test_mode();
+        }
+        GUI.set_context(0,"");
+        current_state = App_state::startup;
+        break;
+      }
+      default: break;
+    }
+  }
+*/
+
+
+
+void on_setting_change(int s) {
+  switch (s) {
+    case _txposeS: case _txposeC:
+      // recalculate pitches for everyone
+      break;
+    case _scaleLck:
+      // set scale lock as appropriate
+      break;
+    case _rotInv: case _rotDblCk: case _rotLongP:
+      Rotary::recalibrate(
+        settings[_rotInv].b, 
+        settings[_rotLongP].i, 
+        settings[_rotDblCk].i
+      );
+      break;
+    case _MIDIusb: case _MIDIjack:
+      // turn MIDI jacks on/off
+      break;    
+    case _synthBuz: case _synthJac:
+      Synth::set_pin(piezoPin, settings[_synthBuz].b);
+      Synth::set_pin(audioJackPin, settings[_synthJac].b);
+      break;    
+    case _MIDIpc: case _MT32pc:
+      // send program change
+      break;
+    case _synthWav:
+      pre_cache_synth_waveform(settings[_synthWav].i, cached_waveform); 
+      break;
+    /*
+    _animFPS,  //
+    _palette,  //
+    _animType, //
+    _globlBrt, //
+    _hueLoop,  //
+    _tglWheel, //
+    _whlMode,  //
+    _mdSticky, //
+    _pbSticky, //
+    _vlSticky, //
+    _mdSpeed,  //
+    _pbSpeed,  //
+    _vlSpeed,  //
+    _MIDImode, //
+    _MPEzoneC, //
+    _MPEzoneL, //
+    _MPEzoneR, //
+    _MPEpb,    //
+    _synthTyp, //
+    */
+    default: 
+      break;
+  }
+}
+
+void menu_handler(int m) {
+  if (m >= 0) {
+    on_setting_change(m);
+    return;
+  }
+  if (m <= _trigger_format_flash) {
+    if (m - _trigger_format_flash == -1) {
+      //
+    }
+  }
+}
 
 struct repeating_timer polling_timer_LED;
 bool on_LED_frame_refresh(repeating_timer *t) {
-  switch (current_state) {
-    case App_state::play_mode:
-    case App_state::menu_nav: {
-      for (auto& b : hexBoard.btn) {
-        strip.setPixelColor(b.pixel, b.LEDcodeBase);
-      }
-      break;
-    }
+  for (auto& b : hexBoard.btn) {
+    Pixel_Data *p = static_cast<Pixel_Data*>(b.pxl_data_ptr);
+    strip.setPixelColor(b.pixel, p->LEDcode);
   }
   strip.show();
   return true;
@@ -420,105 +517,109 @@ bool on_LED_frame_refresh(repeating_timer *t) {
 
 struct repeating_timer polling_timer_OLED;
 bool on_OLED_frame_refresh(repeating_timer *t) {
-  switch (current_state) {
-    case App_state::menu_nav:
-      if (doNotDrawMenu) break;
-      menu.drawMenu();
-      oled_screensaver.jiggle();
-      break;
-    case App_state::play_mode:
-    case App_state::color_picker:
-      u8g2.clearBuffer();
-      GUI.draw();
-      u8g2.sendBuffer();
-      break;
-    default:
-      break;
+  if (menu.getCurrentMenuPage() == &pgNoMenu) {
+    u8g2.clearBuffer();
+    GUI.draw();
+    u8g2.sendBuffer();
+  } else {
+    // the drawMenu routine already
+    // starts with clearBuffer and
+    // ends with sendBuffer.
+    // also the drawMenu routine
+    // will call GUI.draw() after the
+    // menu is written but before 
+    // sendBuffer. hence why this switch exists
+    if (doNotDrawMenu) return false;
+    menu.drawMenu();
+    oled_screensaver.jiggle();
   }
   return true;
 }
-
-struct repeating_timer polling_timer_debug;
-bool on_debug_refresh(repeating_timer *t) {
-  //debug.add_num(successes);
-  //debug.add("\n");
-  debug.send();
-  return true;
-}
-
 
 /*
- *  Boot order:
- *  1) set up OLED display
- *     display verbose logging?
- *  2) set up background collection (keys, knob, audio)
- *  3) mount file system
- *  4) attempt to load last settings and layout
- *  5) if either fail
- */
+  struct repeating_timer polling_timer_debug;
+  bool on_debug_refresh(repeating_timer *t) {
+    //debug.add_num(successes);
+    //debug.add("\n");
+    debug.send();
+    return true;
+  }
+*/
+  
+void initialize_application() {
+  for (size_t i = 0; i < buttons_count; ++i) {
+    hexBoard.btn[i].app_data_ptr = static_cast<void*>(&music[i]);
+    hexBoard.btn[i].pxl_data_ptr = static_cast<void*>(&pixel[i]);
+  }
+}
+
+
+void initialize_settings() {
+  load_factory_defaults_to(settings);
+  debug.setStatus(&settings[_debug].b);
+  oled_screensaver.setDelay(&settings[_SStime].i);
+}
+
+
 
 void setup() {
-  hexBoardHW::Keys::initialize_queue(keys_count + 1);
-  hexBoardHW::Rotary::initialize_queue(32);
-  load_factory_defaults_to(settings);
-  link_settings_to_objects(settings);
-  add_repeating_timer_ms(LED_poll_interval_mS, on_LED_frame_refresh, NULL, &polling_timer_LED);
-  add_repeating_timer_ms(OLED_poll_interval_mS, on_OLED_frame_refresh, NULL, &polling_timer_OLED);
-  add_repeating_timer_ms(1'000, on_debug_refresh, NULL, &polling_timer_debug);
-  multicore_launch_core1(start_background_processes);
+  // code to link modules and objects before setup
+  initialize_application();
+  initialize_settings();
+  initialize_GUI_layers();
+  menu_setup();
+  // boot up hardware
+  Boot_Flags::fs_mounted = mount_file_system(false);
+  multicore_launch_core1(begin_background_processes);
   connect_OLED_display(OLED_sdaPin, OLED_sclPin);
   connect_neoPixels(ledPin, buttons_count);
-  initialize_GUI_layers();
-
-
-  if (hexBoardHW::Rotary::instance.getClickState()) {
-    // knob held down during boot -- offer factory reset
-    // GUI a message box
-  }
-  
-  if (mount_file_system(false)) {
-    // loop until user confirms reformat.
-  }
-  //if (!load_settings(settings, settingFileName)) {
-    // if load fails?
-  //}  
-
   mount_tinyUSB();
-  apply_settings_to_objects(settings);
   init_MIDI();
-  hexBoardHW::Synth::initialize_channel_queue();
-  menu_setup();
-	menu.setDrawMenuCallback(after_menu_update_GUI);
-  current_state = App_state::play_mode;
+  // display handlers
+  add_repeating_timer_ms(OLED_poll_interval_mS, on_OLED_frame_refresh, NULL, &polling_timer_OLED);
+  add_repeating_timer_ms(LED_poll_interval_mS, on_LED_frame_refresh, NULL, &polling_timer_LED);
+  // if knob held down during boot, go into safe mode
+  Boot_Flags::safe_mode = Rotary::getClickState();
+  if (Boot_Flags::safe_mode) {
+    // stick with default settings
+    // apply default settings
+    // hold on loading a layout
+  } else {
+    menu.setMenuPageCurrent(pgFileSystemError);
+    //if (!load_settings(settings, settingFileName)) {
+      // if load fails?
+    //}  
+    // try to load latest settings
+    // try to load latest layout
+  }
+  // when settings are updated from a file, run this:
+  apply_settings_to_objects();
+  menu.drawMenu();
 }
+
 void loop() {
-  hexBoardHW::Keys::Msg key_msg_out;
-  if (queue_try_remove(&hexBoardHW::Keys::msg_queue, &key_msg_out)) {
-    if (hexBoard.btn_at_index[key_msg_out.switch_number] == nullptr) {
-      if (hexBoard.dip_at_index[key_msg_out.switch_number] == nullptr) return;
-      Hardwire_Switch* h = hexBoard.dip_at_index[key_msg_out.switch_number];
-      h->state = key_msg_out.level;
+  // key handler
+  if (queue_try_remove(&Keys::msg_queue, &Keys::msg_out)) {
+    if (hexBoard.btn_at_index[Keys::msg_out.switch_number] == nullptr) {
+      if (hexBoard.dip_at_index[Keys::msg_out.switch_number] == nullptr) return;
+      Hardwire_Switch* h = hexBoard.dip_at_index[Keys::msg_out.switch_number];
+      h->state = Keys::msg_out.level;
       hardwired_switch_handler(*h);
       return;
     }
-    Physical_Button* b = hexBoard.btn_at_index[key_msg_out.switch_number];
-    b->update_levels(key_msg_out.timestamp, key_msg_out.level);
-    switch (current_state) {
-      case App_state::play_mode:    key_handler_playback(*b);     break;
-      case App_state::menu_nav:     key_handler_playback(*b);     break;
-      case App_state::hex_picker:   key_handler_hex_picker(*b);   break;
-      case App_state::color_picker: key_handler_color_picker(*b); break;
-      default:                                                    break;
+    Physical_Button* b = hexBoard.btn_at_index[Keys::msg_out.switch_number];
+    b->update_levels(Keys::msg_out.timestamp, Keys::msg_out.level);
+    // can change this based on current key situation
+    key_handler_playback(*b);
+  }
+  // knob handler
+  if (queue_try_remove(&Rotary::act_queue, &Rotary::action_out)) {
+    knob_handler_GUI(Rotary::action_out);
+    if (menu.getCurrentMenuPage() == &pgNoMenu) {
+      knob_handler_playback(Rotary::action_out);
+    } else {
+      knob_handler_menu(Rotary::action_out);
     }
   }
-  hexBoardHW::Rotary::Action rotary_action_out;
-  if (queue_try_remove(&hexBoardHW::Rotary::act_queue, &rotary_action_out)) {
-    switch (current_state) {
-      case App_state::play_mode:    knob_handler_playback(rotary_action_out);     break;
-      case App_state::menu_nav:     knob_handler_menu(rotary_action_out);         break;
-      case App_state::hex_picker:   knob_handler_hex_picker(rotary_action_out);   break;
-      case App_state::color_picker: knob_handler_color_picker(rotary_action_out); break;
-      default:                                                                    break;
-    }
-  }
+  // LED and OLED displays run on a timer in the background
 }

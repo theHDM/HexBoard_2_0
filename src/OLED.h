@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <U8g2lib.h>
 #include "pico/time.h"
+#include <string>
 
 // Create an instance of the U8g2 graphics library.
 U8G2_SH1107_SEEED_128X128_F_HW_I2C u8g2(U8G2_R2);
@@ -16,6 +17,36 @@ const uint8_t _LG_FONT_HEIGHT = 8;
 const uint8_t _SM_FONT_HEIGHT = 6;
 const uint8_t _LEFT_MARGIN = 6;
 const uint8_t _RIGHT_MARGIN = 8;
+
+void drawStringWrap(u8g2_uint_t x, u8g2_uint_t y, std::string str, bool altWrap = false) {
+  std::vector<std::string> linesOfText(0);
+  uint8_t yCursor = y;
+  int8_t yLineBreak = 2 + u8g2.getAscent() - u8g2.getDescent();
+  size_t strCursor = 0;
+  bool endOfString = false;
+  while ((yCursor <= _OLED_HEIGHT - yLineBreak) && (yCursor > 0)) {
+    if (endOfString) break;
+    std::string thisLine;
+    thisLine.clear();
+    bool endOfLine = false;
+    while (!endOfString && !endOfLine) {
+      if (str.substr(strCursor,1) == "\n") {
+        endOfLine = true;
+      } else {
+        thisLine += str[strCursor];
+        endOfLine = (u8g2.getStrWidth(thisLine.c_str()) > (_OLED_WIDTH - _RIGHT_MARGIN - x));
+      }
+      endOfString = (++strCursor >= str.size());
+    }
+    linesOfText.push_back(thisLine);
+    yCursor += yLineBreak * (altWrap ? -1 : 1); 
+  }
+  for (size_t i = 0; i < linesOfText.size(); ++i) {
+    int j = i;
+    if (altWrap) j -= (linesOfText.size() - 1);
+    u8g2.drawStr(x, y + (j * yLineBreak), linesOfText[i].c_str());
+  }
+}
 
 void connect_OLED_display(uint8_t SDA, uint8_t SCL) {
   // the microprocessor is the RP2040 / RP2350 series
@@ -62,23 +93,51 @@ struct OLED_screensaver {
   }
 };
 
+const size_t maximum_GUI_layers = 32;
+
 struct GUI_Object {
+  size_t sz;
+  uint32_t last_updated;
   uint32_t context;
-  std::vector<std::function<void()>> drawLayer;
-  GUI_Object(size_t n) : drawLayer(n), context(0) {}
-  void enable(size_t l) {
-    context |= (1u << l);
+  std::vector<std::function<void(std::string)>> drawLayer;
+  std::vector<std::string> strParam;
+  GUI_Object(size_t n) : 
+    sz(n),
+    drawLayer(n), 
+    strParam(n),
+    context(0),
+    last_updated(0) {}  
+  void add_context(uint32_t c) {
+    context |= c;
+    last_updated = timer_hw->timerawl;
   }
-  void disable(size_t l) {
-    context &= ~(1u << l);
+  void remove_context(uint32_t c) {
+    context &= ~c;
+    last_updated = timer_hw->timerawl;
+  }
+  void set_context(uint32_t c, std::string s) {
+    context = c;
+    for (int i = 0; i < sz; ++i) {
+      if (context & (1u << i)) {
+        strParam[i] = s;
+      }
+    }
+    last_updated = timer_hw->timerawl;
+  }
+  void set_handler(uint32_t c, std::function<void(std::string)> f) {
+    for (int i = 0; i < sz; ++i) {
+      if (c & (1u << i)) {
+        drawLayer[i] = f;
+      }
+    }
+    last_updated = timer_hw->timerawl;
   }
   void draw() {
-    for (size_t i = 0; i < drawLayer.size(); ++i) {
+    for (size_t i = 0; i < sz; ++i) {
       if (context & (1u << i)) {
-        drawLayer[i]();
+        drawLayer[i](strParam[i]);
       }
     }
   }
 };
-
-GUI_Object GUI(32);
+GUI_Object GUI(maximum_GUI_layers);

@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-#include "color.h"
 #include <string>
 /*  
  *  This is a library of scale, palette, and other musical definitions
@@ -73,6 +72,23 @@ Library_Entry list_of_scales[] = {
 // 2) make sure they have global scope
 // 3) use .c_str() to create const char*
 //    that points to those strings
+std::string string_array_of_BPMs[255];
+Library_Entry list_of_BPMs[255];
+void fill_BPMs(std::string *refArray, Library_Entry *refLib, int leading_spaces, int trailing_spaces) {
+  for (int i = 0; i < 255; ++i) {
+    refLib[i].value = i + 1;
+    for (int j = 0; j < leading_spaces + (i < 99) + (i < 9); ++j) {
+      refArray[i] += " ";
+    }
+    refArray[i] += std::to_string(i + 1);
+    for (int j = 0; j < trailing_spaces; ++j) {
+      refArray[i] += " ";
+    }
+    refLib[i].label = refArray[i].c_str();
+  }
+}
+
+
 std::string string_array_MIDI_pitch_names[128];
 Library_Entry list_of_MIDI_pitch_names[128];
 void fill_MIDI_pitch_names(std::string *refArray, Library_Entry *refLib, int leading_spaces, int trailing_spaces) {

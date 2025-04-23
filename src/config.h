@@ -1,3 +1,6 @@
+#pragma once
+#include <stdint.h>
+
 /* config.h
  *
  * This file defines hardware-specific constants
@@ -40,10 +43,6 @@
  * 29    -- open --
  */
 
-#pragma once
-#include <stdint.h>
-#include <map>
-
 const uint8_t GPIO_pin_count = 32; // maximum size of certain object arrays
 
 // If you rewire the HexBoard then change these pin values
@@ -51,7 +50,7 @@ const uint8_t muxPins[] = {4,5,2,3}; // 1bit 2bit 4bit 8bit
 const uint8_t colPins[] = {6,7,8,9,10,11,12,13,14,15};
 
 // 1 if analog (firmware 2.0), 0 if digital
-const    bool analogPins[]  = {0,0,0,0,0,0,0,0,0,0};
+const bool analogPins[] = {0,0,0,0,0,0,0,0,0,0};
 
 const size_t mux_pins_count = sizeof(muxPins)/sizeof(muxPins[0]);  // should equal 4
 const size_t col_pins_count = sizeof(colPins)/sizeof(colPins[0]);  // should equal 10
@@ -87,8 +86,8 @@ constexpr int32_t OLED_poll_interval_mS = 1'000 / OLED_frame_rate_Hz;
 const uint16_t default_analog_calibration_up = 480;
 const uint16_t default_analog_calibration_down = 280;
 
-const uint8_t  default_contrast = 64; // range: 0-127
-const uint8_t  screensaver_contrast = 1; // range: 0-127
+const uint8_t default_contrast = 64; // range: 0-127
+const uint8_t screensaver_contrast = 1; // range: 0-127
 
 const uint8_t synth_polyphony_limit = 16;
 const uint8_t audio_bits = 9;
@@ -101,7 +100,7 @@ constexpr size_t hardwire_count = keys_count - buttons_count;
 // ordered by NeoStrip pixel number (0 thru 139 on this version)
 const int hexBoard_layout_hw_1_2[buttons_count][4] = {
   // x   y    mux   col  pixel
-  {-10,  0, 0b0000, 0}, //   0 **
+  {-10,  0, 0b0000, 0}, //   0 ** "left side button"
   { -8, -6, 0b0000, 1}, //   1
   { -6, -6, 0b0000, 2}, //   2
   { -4, -6, 0b0000, 3}, //   3

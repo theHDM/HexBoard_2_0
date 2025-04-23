@@ -1,14 +1,65 @@
 #pragma once
-/*  
- *  This header generates hexBoard
- *  layouts based on menu selections.
- *  Lots of dependencies but they're
- *  all common to the main .ino file
- *  so rather than list them all, just
- *  make sure this header occurs at the
- *  end after other declarations.
- */
+#include <stdint.h>
+#include <cmath>
 
+struct App_Data {
+  // MIDI info
+  uint8_t channel;
+  uint8_t table;
+  double  note;
+  double  freq;    // in Hz, used for synth
+  uint8_t cmd;     // assigned command, based on enum, used for MIDI
+  uint8_t param;   // assigned parameter, based on enum, used for MIDI
+  int8_t  equave;  // used for scales / visualization, not used for JI lattice
+  int8_t  degree;  // used for scales / visualization, for 1-dimension
+  uint8_t midiChPlaying  = 0;  // what midi channel is there currrently a note-on
+  uint8_t synthChPlaying = 0;  // what synth channel is there currrently a note-on
+
+  void setFreq(double Hz) {
+    freq = Hz;
+    note = 69.0 + 12.0 * log2(Hz / 440.0);
+  }
+  void setPitch(double midi) {
+    note = midi;
+    freq = 440.0 * exp2((midi - 69.0) / 12.0);
+  }
+
+};
+
+
+
+////////////////////
+#include "settings.h"
+#include <FS.h>
+
+const size_t bytes_per_btn = 32; // just in case
+
+void save_layout(hexBoard_Setting_Array& refS, File& F) {
+  for (size_t s = 0; s < _settingSize; ++s) {
+    // serialize
+    for (size_t b = 0; b < bytes_per_setting; ++b) {
+      F.write((refS[s].w)[b]);
+    }
+  }
+}
+
+void load_layout(hexBoard_Setting_Array& refS, File& F) {
+  for (size_t s = 0; s < _settingSize; ++s) {
+    for (size_t b = 0; b < bytes_per_setting; ++b) {
+      if (F.available()) (refS[s].w)[b] = F.read();
+    }
+    // unserialize
+  }
+}
+
+
+
+
+
+
+// below is reference code until it gets reconnected
+
+/*
 template <typename T1, typename T2>
 void update_if_closer_to_zero(T1& LHS, const T2& RHS) {
   if (std::abs(RHS) < std::abs(LHS)) {LHS = RHS;}
@@ -434,3 +485,4 @@ bool generate_layout(hexBoard_Setting_Array& refS) {
 
   return true;
 }
+*/

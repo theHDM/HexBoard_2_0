@@ -9,78 +9,6 @@
 // generated to modify settings.
 GEM_u8g2 menu(u8g2);
 
-// expose the underlying numerical type linked to the menu item
-struct GEMItemPublic : public GEMItem {
-  GEMItemPublic(const GEMItem& g) : GEMItem(g) {}
-  byte getLinkedType() { return linkedType; }
-};
-/*
- *  allow the GEMPage object to store the GUI context
- *  and make custom constructors to streamline design.
- *  OLED is 128 pixels wide.
- *  Menu items are displayed in monospace font.
- *  Maximum string size is 19 characters.
- *  On each page you set characters aside for 
- *  selectors (spinners, checkboxes, value entry)
- *  This can be different between pages -- e.g.
- *  7 characters for some pages, 8 for others.
- *  The default layout can show 11 menu entries,
- *  plus a "back" entry at the top (enter zero).
- *  If you want to display the HUD panel below
- *  then you can limit how many menu items are 
- *  shown to e.g. 7 rows.
- */
-struct GEMPagePublic : public GEMPage {
-  int menu_context; // this value drives input decisions sometimes
-  uint32_t GUI_context; // this value drives what gets drawn on screen besides the menu
-	std::string HUD_footer; // this value gets read by the GUI reader function.
-  GEMAppearance derived_appearance;
-  void initialize_appearance(byte titleRows_, byte itemsPerScreen_, 
-	                           byte valueMargin_) {
-    derived_appearance = {
-      GEM_POINTER_ROW, 
-      itemsPerScreen_, 
-      (byte)(_LG_FONT_HEIGHT + 2), 
-      (byte)(4 + _SM_FONT_HEIGHT + (titleRows_ * (_LG_FONT_HEIGHT + 2))),
-      (byte)(_OLED_WIDTH - _RIGHT_MARGIN - (valueMargin_ * _LG_FONT_WIDTH))
-    };
-    _appearance = &derived_appearance;
-  }
-  GEMPagePublic(const char* title_, std::string footer_, int GUI_context_,  
-	              byte titleRows_, byte itemsPerScreen_, byte valueMargin_)
-  : GEMPage(title_), GUI_context(GUI_context_), HUD_footer(footer_) {
-    initialize_appearance(titleRows_, itemsPerScreen_, valueMargin_);
-  }
-  GEMPagePublic(const char* title_, int GUI_context_, byte titleRows_, 
-	              byte itemsPerScreen_, byte valueMargin_, GEMPage& parentPage_)
-  : GEMPage(title_, parentPage_), GUI_context(GUI_context_), HUD_footer("") {
-    initialize_appearance(titleRows_, itemsPerScreen_, valueMargin_);
-  }
-  GEMPagePublic(const char* title_, int GUI_context_, byte titleRows_, 
-	              byte itemsPerScreen_, byte valueMargin_, void (*on_exit_)())
-  : GEMPage(title_, on_exit_), GUI_context(GUI_context_), HUD_footer("") {
-    initialize_appearance(titleRows_, itemsPerScreen_, valueMargin_);
-  }
-};
-
-GEMPagePublic pgNoMenu(
-  "",              "Long press knob: main menu", 0b0000001, 0, 0, 0);
-GEMPagePublic pgHome(
-  "Hexboard v1.1", "Long press knob: exit menu", 0b0000001, 0, 7, 0);
-GEMPagePublic pgShowMsg(
-  "",                                            0b0000001, 6, 1, 0, pgHome);
-GEMPagePublic pgLayout(
-  "Layout & tuning",                             0b0000001, 0, 7, 0, pgHome);
-GEMPagePublic pgL_Micro(
-  "microtones layout",                           0b0000001, 0, 0, 7, pgLayout);
-GEMPagePublic pgSideBarKey("...set anchor and key",
-  "Press the hex button where\nyou want the key center to\nbe located. The coordinates\nof the button will update\nabove when you do so.", 
-  0b0000001, 0, 0, 11);
-GEMPagePublic pgSideBarCents("...enter floating value",
-  "Single click to edit\nSelect confirm to accept\nLong press to cancel", 
-  0b0000001, 0, 0, 7);
-
-
 GEMSelect dd_periods(4, (SelectOptionInt[]){
   {"Octave" , 0},
   {"Tritave", 1},
@@ -237,7 +165,6 @@ GEMSelect dropdown_MPE_PB(5, (SelectOptionInt[]){
   {"Pitch bend +/- 96",96}
 });
 
-
 GEMSpinner spin_1_32    ((GEMSpinnerBoundariesInt){1,   1,  32});
 GEMSpinner spin_1_16    ((GEMSpinnerBoundariesInt){1,   1,  16});
 GEMSpinner spin_0_62    ((GEMSpinnerBoundariesInt){1,   0,  62});
@@ -248,8 +175,63 @@ GEMSpinner spin_1_255   ((GEMSpinnerBoundariesInt){1,   1, 255});
 GEMSpinner spin_100_1k  ((GEMSpinnerBoundariesInt){10,100,1000});
 GEMSpinner spin_500_2k  ((GEMSpinnerBoundariesInt){10,500,2000});
 
-
 GEMItem *menuItem[_settingSize];
+
+/*
+ *  allow the GEMPage object to store the GUI context
+ *  and make custom constructors to streamline design.
+ *  OLED is 128 pixels wide.
+ *  Menu items are displayed in monospace font.
+ *  Maximum string size is 19 characters.
+ *  On each page you set characters aside for 
+ *  selectors (spinners, checkboxes, value entry)
+ *  This can be different between pages -- e.g.
+ *  7 characters for some pages, 8 for others.
+ *  The default layout can show 11 menu entries,
+ *  plus a "back" entry at the top (enter zero).
+ *  If you want to display the HUD panel below
+ *  then you can limit how many menu items are 
+ *  shown to e.g. 7 rows.
+ */
+
+struct GEMPagePublic : public GEMPage {
+	std::string header_text;
+  GEMAppearance derived_appearance;
+  void initialize_appearance(byte vOffset_, byte itemsPerScr_, byte hOffset_) {
+    derived_appearance = {GEM_POINTER_ROW, itemsPerScr_, 
+      (byte)(_LG_FONT_HEIGHT + 2), 
+      (byte)(4 + _SM_FONT_HEIGHT + (vOffset_ * (_LG_FONT_HEIGHT + 3)
+      )),
+      (byte)(_OLED_WIDTH - _RIGHT_MARGIN - (hOffset_ * _LG_FONT_WIDTH))
+    };
+    _appearance = &derived_appearance;
+  }
+  GEMPagePublic(const char* title_, 
+                std::string header_text_, byte headerRows_, 
+                byte itemsPerScreen_, byte valueMargin_)
+  : GEMPage(title_), header_text(header_text_) {
+    initialize_appearance(headerRows_, itemsPerScreen_, valueMargin_);
+  }
+  GEMPagePublic(const char* title_, GEMPage& parentPage_,  
+	              byte itemsPerScreen_, byte valueMargin_)
+  : GEMPage(title_, parentPage_), header_text("") {
+    initialize_appearance(0, itemsPerScreen_, valueMargin_);
+  }
+  GEMPagePublic(const char* title_, void (*on_exit_)(),
+                std::string header_text_, byte headerRows_, 
+	              byte itemsPerScreen_, byte valueMargin_)
+  : GEMPage(title_, on_exit_), header_text(header_text_) {
+    initialize_appearance(headerRows_, itemsPerScreen_, valueMargin_);
+  }
+};
+
+GEMPagePublic pgNoMenu("", "", 0, 1, 0);
+
+GEMPagePublic pgFileSystemError("Error",
+  "LittleFS file systemcould not mount.\nAttempt formatting\nflash partition?", 
+  5, 2, 0);
+
+GEMPagePublic pgHome("HexBoard v2.0", "", 0, 7, 0);
 
 // the menu items created based on settings
 // will pass thru this callback function
@@ -262,41 +244,34 @@ GEMItem *menuItem[_settingSize];
 // - negative integer callbacks are to trigger
 // special routines.
 enum {
-  _on_generate_layout   = -1,
-  _goto_select_key      = -2,
-  _on_change_key        = -3,
-  _on_change_equave     = -4
+  _trigger_load_setting = -512,  //- 0b  010 0000 ****  * = preset #
+  _trigger_save_setting = -768,  //- 0b  011 0000 ****  * = preset #
+  _trigger_load_layout  = -1024, //- 0b  100 0000 ****  * = preset #
+  _trigger_save_layout  = -1280, //- 0b  101 0000 ****  * = preset #
+  _trigger_format_flash = -2048, //- 0b 1000 0000 000*  * = yes/no
 };
 
+extern void menu_handler(int m);
+
+// a "sidebar" page is one that could have multiple points of entry.
+// using this macro ensures the "go back" button goes to the previous page.
 #define __SIDEBAR(P) P.setParentMenuPage(*(menu.getCurrentMenuPage()));menu.setMenuPageCurrent(P)
 
-extern void on_setting_change(int settingNumber);
-
 void onChg(GEMCallbackData callbackData) {
+  // these are only menu-related navigation actions
 	int s = callbackData.valInt;
   // this is a little more flexible than switch...case.
 	if ( s >= 0 ) {
     // settings-related callbacks
-    if ( s == _equaveD ) {
-      if ( settings[_equaveD].i == -1 ) {
-        __SIDEBAR(pgSideBarCents);
-      }
-    } else if ( s == _MIDIorMT ) { 
-    
-    }
   } else {
-    // special submenu callbacks
-    if ( s == _on_generate_layout ) { 
-      // menu actions to take before passing to menu handler?
-    } else if ( s == _goto_select_key ) { 
-      __SIDEBAR(pgSideBarKey);
-    } else if ( s == _on_change_key ) {
-      // change the title, etc.
+    // trigger-related callbacks
+    if ( s <= _trigger_format_flash ) {
+      //menu.setMenuPageCurrent(pgPlayMode);
     }
 	}
   // after all menu related actions occur, go into the main .ino
   // and run any application code necessary from there.
-  on_setting_change(s);
+  menu_handler(s);
   menu.drawMenu();
 }
 
@@ -307,34 +282,63 @@ void onChg(GEMCallbackData callbackData) {
 #define __SEND_INT(L,P,C) P.addMenuItem(*new GEMItem(L,onChg,C))
 #define __NAVIGATE(L,P,D) P.addMenuItem(*new GEMItem(L,D))
 
-std::string label_anchor = "Set key center...";
-std::string label_tuning = "Tuning system...";
-
 void build_menu() {
+
+  // pgFileSystemError
+  __SEND_INT("Yes", pgFileSystemError, _trigger_format_flash - 1);
+  __SEND_INT("No",  pgFileSystemError, _trigger_format_flash);
+
+
+
+
+
   // sidebar pages
+/*
   __EDIT_FLT("Amount in c",         pgSideBarCents, _equaveC);
   __SEND_INT( "           Confirm", pgSideBarCents, _on_change_equave); // this needs work
-
   fill_MIDI_pitch_names(string_array_MIDI_pitch_names, list_of_MIDI_pitch_names, 0, 7);
   fill_coarse_pitch_values(string_array_coarse_pitch, list_of_coarse_pitch, 4, 3);
   fill_fine_pitch_values(string_array_fine_pitch, list_of_fine_pitch, 7, 0);
   __LIB_LIST("Pitch",    pgSideBarKey,   _anchorN,  list_of_MIDI_pitch_names);
   __LIB_LIST("Coarse",   pgSideBarKey,   _anchorC,  list_of_coarse_pitch);
   __LIB_LIST("Fine",     pgSideBarKey,   _anchorF,  list_of_fine_pitch);
-  __SEND_INT( "           Confirm", pgSideBarKey, _on_change_key); // this needs work
+  __SEND_INT("           Confirm", pgSideBarKey, _on_change_key); // this needs work
+
+
+
+  // safe mode
+  __NAVIGATE("Hardware Test", pgSafeMode, pgHardwareTest);
+  __NAVIGATE("Show me a popup", pgSafeMode, pgShowMsg);
+    __SEND_INT("OK", pgShowMsg, -16);
+  __NAVIGATE("Show me a choice", pgSafeMode, pgShowMsg2);
+    __SEND_INT("OK", pgShowMsg2, -17);
+    __NAVIGATE("Cancel", pgShowMsg2, pgSafeMode);
+  //__NAVIGATE("Format Flash", pgSafeMode, pgFormatFlash);
 
   // menu tree
-  __NAVIGATE("Layout",              pgHome,     pgLayout);
-//  	__NAVIGATE("Select from preset",  pgLayout,   pgL_preset);
-//    __NAVIGATE("Make new isomorphic", pgLayout,   pgL_Iso);
-//    __NAVIGATE("Make new easy-scale", pgLayout,   pgL_EZ);
-    __NAVIGATE("Make new microtonal", pgLayout,   pgL_Micro);
-      __DROPDOWN(" Period is:",          pgL_Micro,  _equaveD,  dd_periods);
-      __SEND_INT(label_anchor.c_str(),   pgL_Micro,  _goto_select_key);
+  //__NAVIGATE("Tuning", pgHome, pgTuning);
+  __NAVIGATE("Layout", pgHome, pgLayout);
+  //__NAVIGATE("Scales", pgHome, pgScales);
+  //__NAVIGATE("Color Options", pgHome, pgColors);
+  //__NAVIGATE("Synth", pgHome, pgSynth);
+  //__NAVIGATE("MIDI Options", pgHome, pgMIDI);
+  //__NAVIGATE("Control Wheel", pgHome, pgControl);
+  //__NAVIGATE("Advanced", pgHome, pgAdvanced);
+  //	__NAVIGATE("Select from preset",  pgLayout,   pgL_preset);
+  //  __NAVIGATE("Make new isomorphic", pgLayout,   pgL_Iso);
+  //  __NAVIGATE("Make new easy-scale", pgLayout,   pgL_EZ);
+  //  __NAVIGATE("Make new microtonal", pgLayout,   pgL_Micro);
+  //    __DROPDOWN(" Period is:",          pgL_Micro,  _equaveD,  dd_periods);
+  //    __SEND_INT(label_anchor.c_str(),   pgL_Micro,  _goto_select_key);
 
-
+*/
 }
 
+struct GEMItemPublic : public GEMItem {
+  GEMItemPublic(const GEMItem& g) : GEMItem(g) {}
+  // expose the underlying numerical type linked to the menu item
+  byte getLinkedType() { return linkedType; }
+};
 int menu_app_state() {
   if (!menu.readyForKey()) return 0;
   if (!menu.isEditMode()) return 1;
@@ -343,9 +347,8 @@ int menu_app_state() {
 }
 
 void after_menu_update_GUI() {
-	GEMPagePublic* thisPg = static_cast<GEMPagePublic*>
-													(menu.getCurrentMenuPage());
-  GUI.context = thisPg->GUI_context;
+	GEMPagePublic* thisPg = static_cast<GEMPagePublic*>(menu.getCurrentMenuPage());
+  drawStringWrap(_LEFT_MARGIN, 4 + _SM_FONT_HEIGHT, thisPg->header_text.c_str());
 	GUI.draw();
 }
 
@@ -354,6 +357,5 @@ void menu_setup() {
   build_menu();
   menu.init();
   menu.invertKeysDuringEdit(true);
-  menu.setMenuPageCurrent(pgNoMenu);
-  menu.drawMenu();
+	menu.setDrawMenuCallback(after_menu_update_GUI);
 }

@@ -14,3 +14,12 @@ File load_from_file(const char* filename) {
 File save_to_file(const char* filename) {
   return LittleFS.open(filename, "w+");
 }
+
+
+
+const char* settingFileName = "temp222.dat";
+namespace Boot_Flags {
+  bool fs_mounted = false;
+  bool ini_exists = false;
+  bool safe_mode = false;
+}
