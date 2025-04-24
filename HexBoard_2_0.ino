@@ -521,22 +521,9 @@ bool on_LED_frame_refresh(repeating_timer *t) {
 
 struct repeating_timer polling_timer_OLED;
 bool on_OLED_frame_refresh(repeating_timer *t) {
-  if (menu.getCurrentMenuPage() == &pgNoMenu) {
-    u8g2.clearBuffer();
-    GUI.draw();
-    u8g2.sendBuffer();
-  } else {
-    // the drawMenu routine already
-    // starts with clearBuffer and
-    // ends with sendBuffer.
-    // also the drawMenu routine
-    // will call GUI.draw() after the
-    // menu is written but before 
-    // sendBuffer. hence why this switch exists
-    if (doNotDrawMenu) return false;
-    menu.drawMenu();
-    oled_screensaver.jiggle();
-  }
+  if (doNotDrawMenu) return false;
+  menu.drawMenu();
+  oled_screensaver.jiggle();
   return true;
 }
 
