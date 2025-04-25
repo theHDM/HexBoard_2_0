@@ -168,15 +168,13 @@ void draw_input_monitor(std::string s) {
     u8g2.drawLine(atX+3,atY-5,atX+5,atY-3);
     u8g2.drawHLine(atX+4,atY-2,3);
     u8g2.drawVLine(atX+6,atY-4,2);
-  } else if (timer_hw->timerawl - GUI_timestampCCW < GUI_arrowPersist_uS) {
+  }
+  if (timer_hw->timerawl - GUI_timestampCCW < GUI_arrowPersist_uS) {
     u8g2.drawLine(atX+1,atY+4,atX+2,atY+5);
     u8g2.drawLine(atX+3,atY+5,atX+5,atY+3);
     u8g2.drawHLine(atX+4,atY+2,3);
     u8g2.drawVLine(atX+6,atY+3,2);
   }
-
-
-
 }
 
 void draw_GUI_sliders(std::string s) {
@@ -282,14 +280,13 @@ void knob_handler_menu(const Rotary::Action& r) {
     case Rotary::Action::turn_CW_with_press: {
       doNotDrawMenu = true;
       menu.registerKeyPress(GEM_KEY_DOWN);
-      doNotDrawMenu = false;
+      
       break;
     }
     case Rotary::Action::turn_CCW:
     case Rotary::Action::turn_CCW_with_press: {
       doNotDrawMenu = true;
       menu.registerKeyPress(GEM_KEY_UP);
-      doNotDrawMenu = false;
       break;
     }
     case Rotary::Action::single_click_release: {
@@ -299,14 +296,12 @@ void knob_handler_menu(const Rotary::Action& r) {
       } else {
         menu.registerKeyPress(GEM_KEY_OK);       
       }
-      doNotDrawMenu = false;
       break;
     }
     case Rotary::Action::double_click: {
       if (menu_app_state() >= 2) {
         doNotDrawMenu = true;
         menu.registerKeyPress(GEM_KEY_LEFT);       
-        doNotDrawMenu = false;
       } else {
         //
       }
@@ -319,7 +314,6 @@ void knob_handler_menu(const Rotary::Action& r) {
       } else {
         menu.registerKeyPress(GEM_KEY_OK);       
       }
-      doNotDrawMenu = false;
       break;
     }
     case Rotary::Action::long_press: {
@@ -331,11 +325,11 @@ void knob_handler_menu(const Rotary::Action& r) {
       } else {
         menu.registerKeyPress(GEM_KEY_CANCEL);
       }
-      doNotDrawMenu = false;
       break;
     }
     default:                          break;
   }
+  doNotDrawMenu = false;
 }
 
 void knob_handler_playback(const Rotary::Action& r) {
@@ -521,9 +515,10 @@ bool on_LED_frame_refresh(repeating_timer *t) {
 
 struct repeating_timer polling_timer_OLED;
 bool on_OLED_frame_refresh(repeating_timer *t) {
-  if (doNotDrawMenu) return false;
-  menu.drawMenu();
-  oled_screensaver.jiggle();
+  if (!doNotDrawMenu) {
+    menu.drawMenu();
+    oled_screensaver.jiggle();
+  }
   return true;
 }
 
