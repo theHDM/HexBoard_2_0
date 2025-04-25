@@ -409,33 +409,6 @@ void hardware_test_mode() {
   // hold to do some cool stuff
 }
 
-/*
-  while (current_state == App_state::safe_mode) {
-    // blocking queue_remove because must make a selection
-    queue_remove_blocking(&Rotary::act_queue, &Rotary::action_out);
-    switch (Rotary::action_out) {
-      case Rotary::Action::turn_CW: 
-      case Rotary::Action::turn_CW_with_press:
-      case Rotary::Action::turn_CCW: 
-      case Rotary::Action::turn_CCW_with_press: {
-        popup_toggle = !popup_toggle;
-        break;
-      }
-      case Rotary::Action::click: {
-        if (popup_toggle) {
-          current_state = App_state::hardware_test;
-          hardware_test_mode();
-        }
-        GUI.set_context(0,"");
-        current_state = App_state::startup;
-        break;
-      }
-      default: break;
-    }
-  }
-*/
-
-
 
 void on_setting_change(int s) {
   switch (s) {
@@ -444,13 +417,6 @@ void on_setting_change(int s) {
       break;
     case _scaleLck:
       // set scale lock as appropriate
-      break;
-    case _rotInv: case _rotDblCk: case _rotLongP:
-      Rotary::recalibrate(
-        settings[_rotInv].b, 
-        settings[_rotLongP].i, 
-        settings[_rotDblCk].i
-      );
       break;
     case _MIDIusb: case _MIDIjack:
       // turn MIDI jacks on/off
@@ -491,15 +457,47 @@ void on_setting_change(int s) {
   }
 }
 
+
+void boot_phase_two() {
+  
+}
+
+void boot_phase_one() {
+  if (Boot_Flags::fs_mounted) {
+    File ini = open_file_at_path(hardware_ini_file_name);
+    if (!ini) {
+      Boot_Flags::calibrate_mode = true;
+      return;
+    } else {
+      bool rotInv = static_cast<bool>(ini.read());
+      int rotLongP = static_cast<int>(ini.read());
+      int rotDblCk = static_cast<int>(ini.read());
+      Rotary::recalibrate(rotInv, rotLongP * 10, rotDblCk * 10);
+      // now do Keys::calibrate()
+      
+      ini.close();
+    }
+  }
+  boot_phase_two();
+}
+
+
 void menu_handler(int m) {
   if (m >= 0) {
     on_setting_change(m);
-    return;
-  }
-  if (m <= _trigger_format_flash) {
-    if (m - _trigger_format_flash == -1) {
-      //
+  } else if (m <= _trigger_format_flash) {
+    if (m == _trigger_format_flash - 1) {
+      if (!Boot_Flags::fs_mounted = mount_file_system(true))
+        return;
     }
+    menu.setMenuPageCurrent(pgNoMenu);
+    boot_phase_one();
+  } else if (m <= _trigger_save_layout) {
+  } else if (m <= _trigger_load_layout) {
+  } else if (m <= _trigger_save_setting) {
+  } else if (m <= _trigger_load_setting) {
+  } else if (m == _trigger_hardware_test) {
+  } else {
   }
 }
 
@@ -531,7 +529,9 @@ bool on_OLED_frame_refresh(repeating_timer *t) {
     return true;
   }
 */
-  
+
+
+
 void initialize_application() {
   for (size_t i = 0; i < buttons_count; ++i) {
     hexBoard.btn[i].app_data_ptr = static_cast<void*>(&music[i]);
@@ -539,14 +539,11 @@ void initialize_application() {
   }
 }
 
-
 void initialize_settings() {
   load_factory_defaults_to(settings);
   debug.setStatus(&settings[_debug].b);
   oled_screensaver.setDelay(&settings[_SStime].i);
 }
-
-
 
 void setup() {
   // code to link modules and objects before setup
@@ -567,20 +564,13 @@ void setup() {
   // if knob held down during boot, go into safe mode
   Boot_Flags::safe_mode = Rotary::getClickState();
   if (Boot_Flags::safe_mode) {
-    // stick with default settings
-    // apply default settings
-    // hold on loading a layout
-  } else {
+    menu.setMenuPageCurrent(pgSafeMode);
+  } else if (!Boot_Flags::fs_mounted) {
     menu.setMenuPageCurrent(pgFileSystemError);
-    //if (!load_settings(settings, settingFileName)) {
-      // if load fails?
-    //}  
-    // try to load latest settings
-    // try to load latest layout
+  } else {
+    boot_phase_one();
   }
-  // when settings are updated from a file, run this:
   apply_settings_to_objects();
-  menu.drawMenu();
 }
 
 void loop() {

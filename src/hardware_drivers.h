@@ -503,15 +503,19 @@ namespace hexBoardHW {
         _doubleClickThreshold = (setDC * 1000) - 1;
       }
 
-      uint8_t         ownership;
+      uint8_t ownership;
 
     public:
       Instance(uint8_t Apin, uint8_t Bpin, uint8_t Cpin)
       : _active(false), _Apin(Apin), _Bpin(Bpin), _Cpin(Cpin), _invert(false)
-      , _longPressThreshold(-1), _doubleClickThreshold(0)
-      , _debounceThreshold(2500) , _turnState(0), _clickState(0)
-      , _prevClickTime(0), _prevHoldTime(0), _doubleClickRegistered(false)
-      , _longPressRegistered(false), _debouncePassed(false) {
+      , _longPressThreshold(default_long_press_timing_ms * 1000)
+      , _doubleClickThreshold(default_double_click_timing_ms * 1000)
+      , _debounceThreshold(default_debounce_threshold_us) 
+      , _turnState(0), _clickState(0)
+      , _prevClickTime(0), _prevHoldTime(0)
+      , _doubleClickRegistered(false)
+      , _longPressRegistered(false)
+      , _debouncePassed(false) {
         pinMode(_Apin, INPUT_PULLUP);
         pinMode(_Bpin, INPUT_PULLUP);
         pinMode(_Cpin, INPUT_PULLUP);

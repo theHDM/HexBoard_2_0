@@ -8,18 +8,15 @@ bool mount_file_system(bool format_if_corrupt) {
   }  
   return false;
 }
-File load_from_file(const char* filename) {
+File open_file_at_path(const char* filename) {
   return LittleFS.open(filename, "r+");
 }
-File save_to_file(const char* filename) {
+File new_file_at_path(const char* filename) {
   return LittleFS.open(filename, "w+");
 }
 
-
-
-const char* settingFileName = "temp222.dat";
 namespace Boot_Flags {
   bool fs_mounted = false;
-  bool ini_exists = false;
+  bool calibrate_mode = false;
   bool safe_mode = false;
 }

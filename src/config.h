@@ -43,6 +43,8 @@
  * 29    -- open --
  */
 
+const char* hardware_ini_file_name = "hexBoard_1_1.ini";
+
 const uint8_t GPIO_pin_count = 32; // maximum size of certain object arrays
 
 // If you rewire the HexBoard then change these pin values
@@ -85,6 +87,9 @@ constexpr int32_t OLED_poll_interval_mS = 1'000 / OLED_frame_rate_Hz;
 // TO-DO: test on hardware v2
 const uint16_t default_analog_calibration_up = 480;
 const uint16_t default_analog_calibration_down = 280;
+const int16_t default_long_press_timing_ms = 750;
+const int16_t default_double_click_timing_ms = 500;
+const uint16_t default_debounce_threshold_us = 2500;
 
 const uint8_t default_contrast = 64; // range: 0-127
 const uint8_t screensaver_contrast = 1; // range: 0-127

@@ -230,6 +230,8 @@ GEMPagePublic pgNoMenu("", "", 0, 1, 0);
 GEMPagePublic pgFileSystemError("Error",
   "LittleFS file systemcould not mount.\nAttempt formatting\nflash partition?", 
   5, 2, 0);
+  
+GEMPagePublic pgSafeMode("Safe mode", "", 0, 7 ,0);
 
 GEMPagePublic pgHome("HexBoard v2.0", "", 0, 7, 0);
 
@@ -244,11 +246,12 @@ GEMPagePublic pgHome("HexBoard v2.0", "", 0, 7, 0);
 // - negative integer callbacks are to trigger
 // special routines.
 enum {
-  _trigger_load_setting = -512,  //- 0b  010 0000 ****  * = preset #
-  _trigger_save_setting = -768,  //- 0b  011 0000 ****  * = preset #
-  _trigger_load_layout  = -1024, //- 0b  100 0000 ****  * = preset #
-  _trigger_save_layout  = -1280, //- 0b  101 0000 ****  * = preset #
   _trigger_format_flash = -2048, //- 0b 1000 0000 000*  * = yes/no
+  _trigger_save_layout  = -1280, //- 0b  101 0000 ****  * = preset #
+  _trigger_load_layout  = -1024, //- 0b  100 0000 ****  * = preset #
+  _trigger_save_setting = -768,  //- 0b  011 0000 ****  * = preset #
+  _trigger_load_setting = -512,  //- 0b  010 0000 ****  * = preset #
+  _trigger_hardware_test = -256,
 };
 
 extern void menu_handler(int m);
@@ -259,19 +262,8 @@ extern void menu_handler(int m);
 
 void onChg(GEMCallbackData callbackData) {
   // these are only menu-related navigation actions
-	int s = callbackData.valInt;
-  // this is a little more flexible than switch...case.
-	if ( s >= 0 ) {
-    // settings-related callbacks
-  } else {
-    // trigger-related callbacks
-    if ( s <= _trigger_format_flash ) {
-      //menu.setMenuPageCurrent(pgPlayMode);
-    }
-	}
-  // after all menu related actions occur, go into the main .ino
-  // and run any application code necessary from there.
-  menu_handler(s);
+	int m = callbackData.valInt;
+  menu_handler(m);
   menu.drawMenu();
 }
 
@@ -288,6 +280,8 @@ void build_menu() {
   __SEND_INT("Yes", pgFileSystemError, _trigger_format_flash - 1);
   __SEND_INT("No",  pgFileSystemError, _trigger_format_flash);
 
+  // pgSafeMode
+  
 
 
 
@@ -356,6 +350,7 @@ void menu_setup() {
   menu.setSplashDelay(0);
   build_menu();
   menu.init();
+  menu.setMenuPageCurrent(pgNoMenu);
   menu.invertKeysDuringEdit(true);
 	menu.setDrawMenuCallback(after_menu_update_GUI);
 }

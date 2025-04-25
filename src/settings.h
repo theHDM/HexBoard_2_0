@@ -35,7 +35,6 @@ enum {
   _tglWheel,_whlMode, 
   _mdSticky,_pbSticky,_vlSticky, 
   _mdSpeed, _pbSpeed, _vlSpeed,  
-  _rotInv,  _rotDblCk,_rotLongP, 
   _SStime,   //
   _MIDImode,_MIDIusb, _MIDIjack,
   _MPEzoneC,_MPEzoneL,_MPEzoneR,_MPEpb,    //
@@ -187,10 +186,7 @@ void load_factory_defaults_to(hexBoard_Setting_Array& refS, int version = 0) {
   refS[_vlSticky].b = false;
   refS[_mdSpeed].i  = 8;
   refS[_pbSpeed].i  = 8; // scale by x128
-  refS[_vlSpeed].i  = 8;		
-  refS[_rotInv].b   = !(version >= 12 ? true : false);
-  refS[_rotDblCk].i = 500; // milliseconds
-  refS[_rotLongP].i = 750; // milliseconds
+  refS[_vlSpeed].i  = 8;
   refS[_SStime].i   = 10; // seconds
   refS[_MIDImode].i = 0;
   refS[_MIDIusb].b  = true;
